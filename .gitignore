@@ -1,0 +1,97 @@
+# ESP-IDF Build System
+build/
+sdkconfig.old
+sdkconfig.old.*
+*.pyc
+__pycache__/
+
+# Managed Components
+managed_components/
+
+# Flash/Erase artifacts
+flash_args
+erase_args
+
+# IDE files
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build-*/
+
+# Logs and temporary files
+*.log
+*.txt
+!README.txt
+boot_*.txt
+boot_capture*.txt
+boot_check*.txt
+boot_test*.txt
+boot_crash*.txt
+boot_verification*.txt
+boot_after*.txt
+boot_extended*.txt
+boot_no_hw*.txt
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# ESP-IDF specific
+sdkconfig.defaults.old
+
+# Partition tables (if auto-generated)
+partition_*.bin
+
+# Factory data (if auto-generated)
+factory_*.bin
+
+# Matter Factory Data - SENSITIVE: Contains private keys and certificates
+firmware/*/staging/
+firmware/*/*/internal/
+*_private_key.bin
+*_private_key.pem
+DAC_*.bin
+PAI_*.bin
+*/*qrcode.png
+*/*partition.bin
+*/*partition_fixed.bin
+
+# Matter Attestation Certificates and Keys - SENSITIVE
+firmware/DAC_*.pem
+firmware/PAI_*.pem
+firmware/PAA_*.pem
+firmware/*_key.pem
+firmware/*.der
+firmware/CD.der
+
+# Matter NVS/Factory partitions with credentials
+firmware/131b_1234/
+firmware/**/factory_data/
+
+# SDK config backups
+sdkconfig.bak
+
+# Test artifacts
+test_results/
+coverage/
+
+/poc
