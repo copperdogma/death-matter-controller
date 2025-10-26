@@ -4,6 +4,8 @@
 
 A Matter-compatible occupancy sensor that controls Death's animatronic skull via UART, exposing 12 operational states as Matter endpoints for Apple Home integration.
 
+> **Part of the [Death Fortune Teller Project](https://github.com/copperdogma/death-fortune-teller)** - This controller sits inside Death's skull and bridges Matter/Apple Home control to Death's main ESP32-WROVER brain.
+
 ## 🎯 Project Overview
 
 This is the **Matter controller** that sits inside Death's skull. It acts as a bridge between Apple Home (via Matter) and Death's ESP32-WROVER brain (via UART), enabling remote control of the fortune telling sequence through Siri or the Home app.
