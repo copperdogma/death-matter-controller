@@ -75,8 +75,7 @@ Death's main controller handles the full state machine, audio playback, servo co
 
 ```bash
 # Set up environment
-cd ~/esp/esp-idf && source ./export.sh
-cd ~/esp/esp-matter && source ./export.sh
+source ~/esp/esp-idf/export.sh && source ~/esp/esp-matter/export.sh
 
 # Build firmware
 cd firmware

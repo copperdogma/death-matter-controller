@@ -51,8 +51,24 @@
 
 static const char *TAG = "app_main";
 
-// Global variables - endpoint IDs for all 17 switches
-static uint16_t g_endpoint_ids[17] = {0};  // Array to store all endpoint IDs
+// Global variables - endpoint IDs for all 12 switches
+static uint16_t g_endpoint_ids[12] = {0};  // Array to store all endpoint IDs
+
+// Endpoint names for logging
+static const char* death_state_names[] = {
+    "FAR Motion",
+    "NEAR Motion", 
+    "Play Welcome",
+    "Wait For Near",
+    "Play Finger Prompt",
+    "Mouth Open Wait Finger",
+    "Finger Detected",
+    "Snap With Finger",
+    "Snap No Finger",
+    "Fortune Flow",
+    "Fortune Done",
+    "Cooldown"
+};
 
 // Use the Kconfig value directly
 
@@ -351,15 +367,31 @@ static esp_err_t app_identification_cb(identification::callback_type_t type, uin
 // This callback is called for every attribute update. The callback implementation shall
 // handle the desired attributes and return an appropriate error code. If the attribute
 // is not of your interest, please do not return an error code and strictly return ESP_OK.
-// Map endpoint IDs to command codes
-static uint8_t get_command_for_endpoint(uint16_t endpoint_id) {
-    // Find the endpoint in our array and return corresponding command
-    for (int i = 0; i < 17; i++) {
+// Map endpoint IDs to command codes and names
+static int get_endpoint_index(uint16_t endpoint_id) {
+    // Find the endpoint in our array and return its index
+    for (int i = 0; i < 12; i++) {
         if (g_endpoint_ids[i] == endpoint_id) {
-            return (uint8_t)(CMD_FAR_MOTION + i);
+            return i;
         }
     }
+    return -1;  // Not found
+}
+
+static uint8_t get_command_for_endpoint(uint16_t endpoint_id) {
+    int idx = get_endpoint_index(endpoint_id);
+    if (idx >= 0) {
+        return (uint8_t)(CMD_FAR_MOTION + idx);
+    }
     return 0;  // Not found
+}
+
+static const char* get_endpoint_name(uint16_t endpoint_id) {
+    int idx = get_endpoint_index(endpoint_id);
+    if (idx >= 0 && idx < 12) {
+        return death_state_names[idx];
+    }
+    return "Unknown Endpoint";
 }
 
 static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16_t endpoint_id, uint32_t cluster_id,
@@ -369,13 +401,20 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
         // Handle On/Off cluster commands
         if (cluster_id == OnOff::Id && attribute_id == OnOff::Attributes::OnOff::Id) {
             bool new_state = val->val.b;
-            ESP_LOGI(TAG, "On/Off command received on endpoint %d: %s", endpoint_id, new_state ? "ON" : "OFF");
+            const char* endpoint_name = get_endpoint_name(endpoint_id);
+            
+            ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            ESP_LOGI(TAG, "🎯 MATTER COMMAND RECEIVED");
+            ESP_LOGI(TAG, "   Endpoint ID: %d", endpoint_id);
+            ESP_LOGI(TAG, "   Endpoint Name: %s", endpoint_name);
+            ESP_LOGI(TAG, "   State: %s", new_state ? "ON" : "OFF");
+            ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             
             if (new_state) {
                 // Switch turned ON - send UART command
                 uint8_t cmd = get_command_for_endpoint(endpoint_id);
                 if (cmd != 0) {
-                    ESP_LOGI(TAG, "Switch ON - sending CMD 0x%02X to WROVER", cmd);
+                    ESP_LOGI(TAG, "📤 Sending UART command: 0x%02X (%s)", cmd, endpoint_name);
                     uart_send_frame(cmd, nullptr, 0);
                     led_command_sent();
                     
@@ -383,9 +422,9 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
                     vTaskDelay(pdMS_TO_TICKS(500));
                     esp_matter_attr_val_t off_val = esp_matter_bool(false);
                     attribute::report(endpoint_id, OnOff::Id, OnOff::Attributes::OnOff::Id, &off_val);
-                    ESP_LOGI(TAG, "Auto-reset endpoint %d to OFF", endpoint_id);
+                    ESP_LOGI(TAG, "✅ Auto-reset %s to OFF", endpoint_name);
                 } else {
-                    ESP_LOGW(TAG, "Unknown endpoint ID: %d", endpoint_id);
+                    ESP_LOGW(TAG, "⚠️  Unknown endpoint ID: %d (%s)", endpoint_id, endpoint_name);
                 }
             }
         }
@@ -554,25 +593,14 @@ extern "C" void app_main()
     ABORT_APP_ON_FAILURE(node != nullptr, ESP_LOGE(TAG, "Failed to create Matter node"));
 
     // ------------------------------------------------------------------
-    // Create 17 On/Off Plugin Unit endpoints for Death state switches
+    // Create 12 On/Off Plugin Unit endpoints for Death state switches
     // ------------------------------------------------------------------
-
-    const char* death_state_names[] = {
-        "FAR Motion",
-        "NEAR Motion", 
-        "Play Welcome",
-        "Wait For Near",
-        "Play Finger Prompt",
-        "Mouth Open Wait Finger",
-        "Finger Detected",
-        "Snap With Finger",
-        "Snap No Finger",
-        "Fortune Flow",
-        "Fortune Done",
-        "Cooldown"
-    };
     
     on_off_plug_in_unit::config_t switch_cfg; // default config
+    
+    ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    ESP_LOGI(TAG, "🔧 Creating Matter Endpoints:");
+    ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     
     for (int i = 0; i < 12; i++) {
         endpoint_t *switch_ep = on_off_plug_in_unit::create(node, &switch_cfg, ENDPOINT_FLAG_NONE, NULL);
@@ -582,8 +610,12 @@ extern "C" void app_main()
         // Set custom name
         set_endpoint_name(switch_ep, death_state_names[i]);
         
-        ESP_LOGI(TAG, "Created %s endpoint (ID: %d)", death_state_names[i], g_endpoint_ids[i]);
+        ESP_LOGI(TAG, "   ✅ Endpoint %d: %s (ID: %d)", i + 1, death_state_names[i], g_endpoint_ids[i]);
     }
+    
+    ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    ESP_LOGI(TAG, "💡 TIP: Toggle endpoints in Apple Home to see which is which!");
+    ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // GPIO control is now handled via Matter commands only
 
