@@ -34,6 +34,14 @@ This is the **Matter controller** that sits inside Death's skull. It acts as a b
 - **LED**: Single status LED on GPIO 8
 - **Button**: Reset/commissioning button on GPIO 9
 
+### UART Wiring (ESP32-C3 ↔ ESP32-WROVER)
+
+- **ESP32-C3 TX (GPIO5)** → **ESP32-WROVER RX (GPIO18)**
+- **ESP32-C3 RX (GPIO6)** ← **ESP32-WROVER TX (GPIO17)**
+- **GND ↔ GND** must be tied together
+
+Remember the TX label indicates *data leaving* that pin. GPIO5 on the SuperMini must drive the WROVER's receive pin, while GPIO6 listens to the WROVER's transmit pin.
+
 ## 📡 Matter Endpoints
 
 The controller exposes 12 On/Off endpoints representing Death's operational states:
@@ -63,8 +71,8 @@ FAR     → "FAR\n"     - Person walking away
 
 In addition to the state triggers, the controller now sends two reliability handshakes:
 
-- `CMD_BOOT_HELLO` (0x0D) is emitted immediately after boot and every second until the WROVER replies with `RSP_BOOT_ACK` (0x90).
-- `CMD_FABRIC_HELLO` (0x0E) is emitted every second after Matter commissioning completes until `RSP_FABRIC_ACK` (0x91) arrives.
+- `CMD_BOOT_HELLO` (0x0D) is emitted immediately after boot and every 5 seconds until the WROVER replies with `RSP_BOOT_ACK` (0x90).
+- `CMD_FABRIC_HELLO` (0x0E) is emitted every 5 seconds after Matter commissioning completes until `RSP_FABRIC_ACK` (0x91) arrives.
 
 Death's main controller handles the full state machine, audio playback, servo control, LED effects, and thermal printing. This Matter controller acts as a remote trigger for these operations.
 

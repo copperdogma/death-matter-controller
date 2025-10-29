@@ -177,7 +177,7 @@ static void led_error() {
 }
 
 static void led_hello() {
-    led_blink(3, 300, 300);  // 3 slow blinks
+    led_blink(3, 80, 80);  // 3 quick blinks at boot
 }
 
 // ===== CRC8 Calculation =====
@@ -257,7 +257,7 @@ static void start_handshake_sequence(handshake_type_t type) {
     const char *name = (type == HANDSHAKE_BOOT) ? "boot_handshake" : "fabric_handshake";
 
     if (*timer == nullptr) {
-        *timer = xTimerCreate(name, pdMS_TO_TICKS(1000), pdTRUE, reinterpret_cast<void *>(static_cast<uintptr_t>(type)),
+        *timer = xTimerCreate(name, pdMS_TO_TICKS(5000), pdTRUE, reinterpret_cast<void *>(static_cast<uintptr_t>(type)),
                               handshake_timer_callback);
         if (*timer == nullptr) {
             ESP_LOGE(TAG, "Failed to create %s timer", name);
@@ -625,6 +625,7 @@ extern "C" void app_main()
     ABORT_APP_ON_FAILURE(ESP_OK == err, ESP_LOGE(TAG, "Failed to configure LED GPIO, err:%d", err));
     led_off();  // Start with LED off
     ESP_LOGI(TAG, "LED GPIO %d initialized", LED_GPIO);
+    led_hello();  // Boot indicator: 3 quick flashes
 
     /* Initialize UART for ESP32-WROVER communication */
     uart_config_t uart_conf = {
