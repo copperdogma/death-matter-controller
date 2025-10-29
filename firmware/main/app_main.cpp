@@ -26,6 +26,8 @@
 // Include the sdkconfig.h file to access Kconfig values
 #include "sdkconfig.h"
 
+#include <stdint.h>
+
 #include <app_openthread_config.h>
 #include "app_reset.h"
 #include "utils/common_macros.h"
@@ -48,6 +50,7 @@
 #include <driver/uart.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/timers.h>
 
 static const char *TAG = "app_main";
 
@@ -89,8 +92,8 @@ using namespace chip::app::Clusters;
 
 // UART configuration for ESP32-WROVER communication
 #define UART_NUM UART_NUM_1
-#define UART_TX_PIN 21
-#define UART_RX_PIN 20
+#define UART_TX_PIN 5
+#define UART_RX_PIN 6
 #define UART_BAUD 115200
 #define UART_BUF_SIZE 1024
 
@@ -114,6 +117,8 @@ using namespace chip::app::Clusters;
 #define CMD_FORTUNE_FLOW     0x0A
 #define CMD_FORTUNE_DONE     0x0B
 #define CMD_COOLDOWN         0x0C
+#define CMD_BOOT_HELLO       0x0D  // Repeated at boot until ACK
+#define CMD_FABRIC_HELLO     0x0E  // Repeated when joining a fabric until ACK
 
 // Commands from C3 (status notifications)
 #define CMD_STATUS_PAIRED    0x10
@@ -124,6 +129,19 @@ using namespace chip::app::Clusters;
 #define RSP_ERR      0x81
 #define RSP_BUSY     0x82
 #define RSP_DONE     0x83
+#define RSP_BOOT_ACK    0x90  // ACK for CMD_BOOT_HELLO
+#define RSP_FABRIC_ACK  0x91  // ACK for CMD_FABRIC_HELLO
+
+typedef enum {
+    HANDSHAKE_BOOT = 0,
+    HANDSHAKE_FABRIC = 1,
+} handshake_type_t;
+
+static TimerHandle_t s_boot_handshake_timer = nullptr;
+static TimerHandle_t s_fabric_handshake_timer = nullptr;
+static bool s_boot_ack_received = false;
+static bool s_fabric_ack_received = false;
+
 
 // ===== LED Control Functions =====
 static void led_on() {
@@ -151,7 +169,7 @@ static void led_ack() {
 }
 
 static void led_command_sent() {
-    led_blink(1, 500, 0);  // 1 long blink
+    led_blink(2, 200, 120);  // 2 medium blinks for each UART TX
 }
 
 static void led_error() {
@@ -214,6 +232,62 @@ static bool uart_send_frame(uint8_t cmd, const uint8_t *payload = nullptr, uint8
 // Wrapper for responses
 static bool uart_send_response(uint8_t response_cmd, const uint8_t *payload = nullptr, uint8_t payload_len = 0) {
     return uart_send_frame(response_cmd, payload, payload_len);
+}
+
+static void send_handshake_command(handshake_type_t type) {
+    uint8_t cmd = (type == HANDSHAKE_BOOT) ? CMD_BOOT_HELLO : CMD_FABRIC_HELLO;
+    const char *label = (type == HANDSHAKE_BOOT) ? "BOOT_HELLO" : "FABRIC_HELLO";
+
+    if (uart_send_frame(cmd, nullptr, 0)) {
+        ESP_LOGI(TAG, "UART handshake sent: %s (0x%02X)", label, cmd);
+        led_command_sent();
+    } else {
+        ESP_LOGW(TAG, "Failed to send UART handshake: %s (0x%02X)", label, cmd);
+    }
+}
+
+static void handshake_timer_callback(TimerHandle_t xTimer) {
+    handshake_type_t type = static_cast<handshake_type_t>(reinterpret_cast<uintptr_t>(pvTimerGetTimerID(xTimer)));
+    send_handshake_command(type);
+}
+
+static void start_handshake_sequence(handshake_type_t type) {
+    TimerHandle_t *timer = (type == HANDSHAKE_BOOT) ? &s_boot_handshake_timer : &s_fabric_handshake_timer;
+    bool *ack_flag = (type == HANDSHAKE_BOOT) ? &s_boot_ack_received : &s_fabric_ack_received;
+    const char *name = (type == HANDSHAKE_BOOT) ? "boot_handshake" : "fabric_handshake";
+
+    if (*timer == nullptr) {
+        *timer = xTimerCreate(name, pdMS_TO_TICKS(1000), pdTRUE, reinterpret_cast<void *>(static_cast<uintptr_t>(type)),
+                              handshake_timer_callback);
+        if (*timer == nullptr) {
+            ESP_LOGE(TAG, "Failed to create %s timer", name);
+            return;
+        }
+    }
+
+    *ack_flag = false;
+    if (xTimerIsTimerActive(*timer) != pdFALSE) {
+        xTimerStop(*timer, 0);
+    }
+
+    send_handshake_command(type);
+
+    if (xTimerStart(*timer, 0) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to start %s timer", name);
+    }
+}
+
+static void stop_handshake_sequence(handshake_type_t type) {
+    TimerHandle_t timer = (type == HANDSHAKE_BOOT) ? s_boot_handshake_timer : s_fabric_handshake_timer;
+    bool *ack_flag = (type == HANDSHAKE_BOOT) ? &s_boot_ack_received : &s_fabric_ack_received;
+    const char *label = (type == HANDSHAKE_BOOT) ? "BOOT_HELLO" : "FABRIC_HELLO";
+
+    if (timer != nullptr) {
+        xTimerStop(timer, 0);
+    }
+
+    *ack_flag = true;
+    ESP_LOGI(TAG, "Handshake ACK received: %s", label);
 }
 
 // ===== Command Handlers (Receive commands from WROVER) =====
@@ -282,8 +356,17 @@ static void uart_rx_task(void *arg) {
                         
                         // Check if this is a response (0x80+) or command (0x01-0x7F)
                         if (cmd >= 0x80) {
-                            // This is a response from WROVER - just log it
-                            ESP_LOGI(TAG, "Received response from WROVER: 0x%02X", cmd);
+                            switch (cmd) {
+                                case RSP_BOOT_ACK:
+                                    stop_handshake_sequence(HANDSHAKE_BOOT);
+                                    break;
+                                case RSP_FABRIC_ACK:
+                                    stop_handshake_sequence(HANDSHAKE_FABRIC);
+                                    break;
+                                default:
+                                    ESP_LOGI(TAG, "Received response from WROVER: 0x%02X", cmd);
+                                    break;
+                            }
                         } else {
                             // This is a command from WROVER - log it
                             ESP_LOGI(TAG, "Received command from WROVER: 0x%02X (not implemented)", cmd);
@@ -329,6 +412,7 @@ static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
         // Notify WROVER that we're now paired with HomeKit
         uart_send_frame(CMD_STATUS_PAIRED, nullptr, 0);
         led_blink(5, 100, 100);  // Celebration blinks!
+        start_handshake_sequence(HANDSHAKE_FABRIC);
         break;
 
     case chip::DeviceLayer::DeviceEventType::kFailSafeTimerExpired:
@@ -566,6 +650,9 @@ extern "C" void app_main()
     /* Start UART RX task */
     xTaskCreate(uart_rx_task, "uart_rx", 4096, NULL, 10, NULL);
     ESP_LOGI(TAG, "UART RX task created");
+
+    /* Begin boot handshake with WROVER */
+    start_handshake_sequence(HANDSHAKE_BOOT);
     
     /* Create a Matter node and add the mandatory Root Node device type on endpoint 0 */
     node::config_t node_config{}; // Explicitly zero-initialize

@@ -14,7 +14,7 @@ This is the **Matter controller** that sits inside Death's skull. It acts as a b
 
 - **Detects occupancy** - PIR sensors detect NEAR (skull proximity) and FAR (walking away) events
 - **Matter integration** - 12 Matter endpoints represent Death's operational states
-- **UART control** - Sends commands to Death's main ESP32 over UART (TX=21, RX=20, 115200 baud)
+- **UART control** - Sends commands to Death's main ESP32 over UART (TX=5, RX=6, 115200 baud)
 - **Apple Home ready** - Successfully commissioned and verified with Apple Home on iOS 18
 
 ## ✨ Key Features
@@ -60,6 +60,11 @@ NEAR    → "NEAR\n"    - Person detected near skull
 FAR     → "FAR\n"     - Person walking away
 [STATE] → "[STATE_NAME]\n" - Trigger specific state manually
 ```
+
+In addition to the state triggers, the controller now sends two reliability handshakes:
+
+- `CMD_BOOT_HELLO` (0x0D) is emitted immediately after boot and every second until the WROVER replies with `RSP_BOOT_ACK` (0x90).
+- `CMD_FABRIC_HELLO` (0x0E) is emitted every second after Matter commissioning completes until `RSP_FABRIC_ACK` (0x91) arrives.
 
 Death's main controller handles the full state machine, audio playback, servo control, LED effects, and thermal printing. This Matter controller acts as a remote trigger for these operations.
 
@@ -147,7 +152,7 @@ For detailed setup instructions, see **[SETUP-GUIDE.md](SETUP-GUIDE.md)**.
 ### UART communication issues
 
 - **Verify baud rate** - Both devices must use 115200 baud
-- **Check wiring** - TX/RX pins (21/20) properly connected
+- **Check wiring** - TX/RX pins (5/6) properly connected
 - **Monitor UART** - Check serial output for command transmission
 
 ### Memory issues / crashes
