@@ -92,8 +92,8 @@ using namespace chip::app::Clusters;
 
 // UART configuration for ESP32-WROVER communication
 #define UART_NUM UART_NUM_1
-#define UART_TX_PIN 5
-#define UART_RX_PIN 6
+#define UART_TX_PIN 21
+#define UART_RX_PIN 20
 #define UART_BAUD 115200
 #define UART_BUF_SIZE 1024
 

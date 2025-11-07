@@ -14,7 +14,7 @@ This is the **Matter controller** that sits inside Death's skull. It acts as a b
 
 - **Detects occupancy** - PIR sensors detect NEAR (skull proximity) and FAR (walking away) events
 - **Matter integration** - 12 Matter endpoints represent Death's operational states
-- **UART control** - Sends commands to Death's main ESP32 over UART (TX=5, RX=6, 115200 baud)
+- **UART control** - Sends commands to Death's main ESP32 over UART (TX=21, RX=20, 115200 baud)
 - **Apple Home ready** - Successfully commissioned and verified with Apple Home on iOS 18
 
 ## ✨ Key Features
@@ -36,11 +36,11 @@ This is the **Matter controller** that sits inside Death's skull. It acts as a b
 
 ### UART Wiring (ESP32-C3 ↔ ESP32-WROVER)
 
-- **ESP32-C3 TX (GPIO5)** → **ESP32-WROVER RX (GPIO18)**
-- **ESP32-C3 RX (GPIO6)** ← **ESP32-WROVER TX (GPIO17)**
+- **ESP32-C3 TX (GPIO21)** → **ESP32-WROVER RX (GPIO18)**
+- **ESP32-C3 RX (GPIO20)** ← **ESP32-WROVER TX (GPIO17)**
 - **GND ↔ GND** must be tied together
 
-Remember the TX label indicates *data leaving* that pin. GPIO5 on the SuperMini must drive the WROVER's receive pin, while GPIO6 listens to the WROVER's transmit pin.
+Remember the TX label indicates *data leaving* that pin. GPIO21 on the SuperMini must drive the WROVER's receive pin, while GPIO20 listens to the WROVER's transmit pin.
 
 ## 📡 Matter Endpoints
 
@@ -160,7 +160,7 @@ For detailed setup instructions, see **[SETUP-GUIDE.md](SETUP-GUIDE.md)**.
 ### UART communication issues
 
 - **Verify baud rate** - Both devices must use 115200 baud
-- **Check wiring** - TX/RX pins (5/6) properly connected
+- **Check wiring** - TX/RX pins (21/20) properly connected
 - **Monitor UART** - Check serial output for command transmission
 
 ### Memory issues / crashes
